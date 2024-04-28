@@ -102,8 +102,8 @@ class StockTradingEnv(gym.Env):
         # Parameters for RiskController might include
         self.risk_params = {
             "N": stock_dim,
-            "sigma_s_min": 0.01,  # Example value
-            "sigma_s_max": 0.02,  # Example value
+            "sigma_s_min": 0.01, #0.01,  # Example value
+            "sigma_s_max": 0.1, #0.02,  # Example value
             "mu": 2,           # Example value
             "rf": 0.0016,          # Risk-free rate
             "eta": 0.3,         # Example value
@@ -120,6 +120,13 @@ class StockTradingEnv(gym.Env):
         prices = self.df.loc[:, self.tech_indicator_list]  # Assuming close prices are among tech indicators
         returns = prices.pct_change().fillna(0)
         self.df['daily_returns'] = returns.mean(axis=1)  # Storing average daily returns across all stocks
+    # def _calculate_daily_returns(self):
+    #     """Calculate daily returns based on close prices for each stock and store them individually."""
+    #     prices = self.df.loc[:, self.tech_indicator_list]
+    #     returns = prices.pct_change().fillna(0)
+    #     # Add prefix to distinguish daily return columns
+    #     for col in returns.columns:
+    #         self.df[f'daily_return_{col}'] = returns[col]
 
     def _sell_stock(self, index, action):
         def _do_sell_normal():
@@ -241,26 +248,144 @@ class StockTradingEnv(gym.Env):
 
     def step(self, actions):
 
+        # # Calculate daily returns using the latest available data
+        # # self._calculate_daily_returns()
+        # sigma_s_min = self.risk_params['sigma_s_min']
+
+        # ## RISK CONTROLLER
+        # # Extract current prices from the state
+        # current_prices = self.state[1:1+self.stock_dim]
+
+        #print(self.df)
+        # # Calculate expected returns using the last three daily returns for each stock
+        # if 'date' in self.df.columns:
+        #     current_date = self.df.loc[self.day, 'date']
+        #     past_dates = self.df[self.df['date'] < current_date].tail(3)
+        #     expected_returns = np.array([past_dates[f'daily_return_{col}'].mean() for col in self.tech_indicator_list])
+        # else:
+        #     # If no date column, assume sequential days and use iloc
+        #     expected_returns = np.array([self.df[f'daily_return_{col}'].iloc[max(self.day-3, 0):self.day].mean() for col in self.tech_indicator_list])
+
+        # print(self.df[[f'daily_return_{col}' for col in self.tech_indicator_list]].iloc[max(self.day-3, 0):self.day])
+        # print(np.array([self.df[f'daily_return_{col}'].mean() for col in self.tech_indicator_list]))
+
+        # Continue with risk parameters and action adjustment
         sigma_s_min = self.risk_params['sigma_s_min']
 
-        ## RISK CONTROLLER 
-        # Example to calculate necessary parameters for risk adjustment
+        ## RISK CONTROLLER
+        # Extract current prices from the state
         current_prices = self.state[1:1+self.stock_dim]  # current prices for stocks
-        #expected_returns = self.df.loc[self.day+1, 'expected_return'] if self.day+1 < len(self.df) else 0
-        expected_returns = self.df['daily_returns'].iloc[max(self.day-3, 0):self.day].mean()
-        #print("here")
+
+        #print("good till here 1")
+
+        # Initialize an empty dictionary to store expected returns for each stock
+        expected_returns = {}
+
+        # Loop through each unique stock identifier
+        for stock in self.df['tic'].unique():
+            # Filter data for the current stock
+            stock_data = self.df[self.df['tic'] == stock]
+            
+            # Sort by date to ensure correct order of days
+            stock_data = stock_data.sort_values('date')
+            
+            # Calculate the mean of the daily returns for the last three available days
+            # Here you use iloc to get the last three days' returns
+            if len(stock_data) >= 3:
+                last_three_returns = stock_data['daily_returns'].iloc[-3:]
+                expected_returns[stock] = last_three_returns.mean()
+            else:
+                # If less than three days of data is available, handle appropriately
+                expected_returns[stock] = 0  # or use NaN or any suitable default/fallback value
+
+        # Extracting the expected returns from the dictionary to an array
+        expected_returns_array = np.array(list(expected_returns.values()))
+        #print("Expected Returns Array:", expected_returns_array)
+
+        expected_returns = expected_returns_array
+
+        # if 'date' in self.df.columns:
+        #     current_date = self.df.loc[self.day, 'date']
+        #     # Select past dates for each stock
+        #     past_dates = self.df[(self.df['date'] < current_date)].tail(3)
+        #     # Calculate mean returns for each stock over the last three days
+        #     expected_returns = past_dates.groupby('tic')['daily_returns'].mean()
+        # if 'date' in self.df.columns:
+        #     # current_date = self.df.loc[self.day, 'date']
+        #     # Convert to datetime to ensure proper formatting and operations
+        #     self.df['date'] = pd.to_datetime(self.df['date'])
+            
+        #     # Assume 'self.day' is an integer that represents an index in a list of unique days
+        #     unique_dates = self.df['date'].drop_duplicates().reset_index(drop=True)
+        #     if self.day < len(unique_dates):
+        #         current_date = unique_dates[self.day]
+        #         print("Current Date:", current_date)
+        #     else:
+        #         print("Day index out of range")
+        #     print(current_date)
+        #     past_dates = self.df[self.df['date'] < current_date].tail(3)
+        #     print(past_dates)
+        #     # Calculate mean even if less than 3 days available
+        #     expected_returns = past_dates.groupby('tic')['daily_returns'].mean() if not past_dates.empty else 0
+        # else:
+        #     # Assuming the DataFrame is already filtered to only include relevant days
+        #     expected_returns = self.df.groupby('tic')['daily_returns'].iloc[max(self.day-3, 0):self.day].mean()
+
+        # print("exp returns,", expected_returns)
+
+        # # Calculate expected returns using the last three daily returns for each stock
+        # # if 'date' in self.df.columns:
+        # #     current_date = self.df.loc[self.day, 'date']
+        # #     past_dates = self.df[self.df['date'] < current_date].tail(3)
+        # #     expected_returns = past_dates['daily_returns'].mean(axis=0)
+        # # else:
+        # #     # If no date column, assume sequential days and use iloc
+        # #expected_returns = self.df['daily_returns'].iloc[max(self.day-3, 0):self.day].mean()
+
+        # print(self.df['daily_returns'].iloc[max(self.day-3, 0):self.day])
+        # print(self.df['daily_returns'].mean(axis=0))
+
+        # Get recent performance from the asset memory
         recent_performance = self.asset_memory[-10:]  # last 10 performances
 
+        actions_original = actions  # Store original actions for comparison
+        #print("action sum", np.sum(actions))
 
+        #print("good till here")
         # Adjust actions using the RiskController
         actions = self.risk_controller.adjust_actions(
             a_rl=actions,
             delta_p_t1=expected_returns,  # this is an array if multiple stocks
             sigma_k_t1=np.diag(current_prices),  # simplistic sigma calculation
             sigma_alpha_t=np.std(recent_performance),  # simplistic strategy risk
-            sigma_s_t=sigma_s_min, #self.risk_params['sigma_s_min'],  # example static risk setting
+            sigma_s_t=sigma_s_min,  # example static risk setting
             recent_performance=recent_performance
         )
+
+
+        # sigma_s_min = self.risk_params['sigma_s_min']
+
+        # ## RISK CONTROLLER 
+        # # Example to calculate necessary parameters for risk adjustment
+        # current_prices = self.state[1:1+self.stock_dim]  # current prices for stocks
+        # #expected_returns = self.df.loc[self.day+1, 'expected_return'] if self.day+1 < len(self.df) else 0
+        # expected_returns = self.df['daily_returns'].iloc[max(self.day-3, 0):self.day].mean()
+        # #print("here")
+        # recent_performance = self.asset_memory[-10:]  # last 10 performances
+
+        # actions_original = actions
+
+        # # Adjust actions using the RiskController
+        # actions = self.risk_controller.adjust_actions(
+        #     a_rl=actions,
+        #     delta_p_t1=expected_returns,  # this is an array if multiple stocks
+        #     sigma_k_t1=np.diag(current_prices),  # simplistic sigma calculation
+        #     sigma_alpha_t=np.std(recent_performance),  # simplistic strategy risk
+        #     sigma_s_t=sigma_s_min, #self.risk_params['sigma_s_min'],  # example static risk setting
+        #     recent_performance=recent_performance
+        # )
+        
+        #print("action diff:", actions_original - actions)
         
         self.terminal = self.day >= len(self.df.index.unique()) - 1
         if self.terminal:
@@ -349,6 +474,7 @@ class StockTradingEnv(gym.Env):
                 int
             )  # convert into integer because we can't by fraction of shares
 
+            #print("integer actions", actions)
             if self.turbulence_threshold is not None:
                 if self.turbulence >= self.turbulence_threshold:
                     actions = np.array([-self.hmax] * self.stock_dim)

@@ -46,7 +46,7 @@ class RiskController:
         G = min(abs(Rs - self.rf) / np.sqrt(self.v), 1)
         
         if Rs < self.rf:
-            lambda_t = (self.m + G) / (1 - G)
+            lambda_t = (self.m + G) / (1 - G + 1e-10)
         else:
             lambda_t = self.m
         
@@ -87,11 +87,16 @@ class RiskController:
         np.ndarray: The adjusted actions after applying risk control
         """
         # Calculate expected return and the risk upper boundary for the next period
+        #print("delta", delta_p_t1)
         expected_return = np.mean(delta_p_t1)
+        #print("expected_return", expected_return)
         sigma_s_t1 = self.calculate_sigma_s_t1(expected_return)
         
+        #print(sigma_s_t1)
+
         # Calculate the scaling factor based on the recent performance
         lambda_t = self.calculate_lambda_t(recent_performance)
+        #print(lambda_t)
         
         # Optimization problem variables
         a_ctrl_t = cp.Variable(self.N)
@@ -104,16 +109,19 @@ class RiskController:
             
             # Control actions must be within [0, 1] after combining with RL agent's actions
             a_rl + a_ctrl_t <= 1,
-            a_rl + a_ctrl_t >= 0,
+            a_rl + a_ctrl_t >= -1 #,
             
             # The sum of the RL and control actions should equal 1
-            cp.sum(a_rl + a_ctrl_t) == 1,
+            #cp.sum(a_rl + a_ctrl_t) == 1,
         ]
 
         # Define the optimization problem and solve
-        objective = cp.Minimize(-cp.sum(a_ctrl_t))
+        #print("prod",cp.multiply(a_ctrl_t, delta_p_t1))
+        objective = cp.Minimize(-cp.sum(cp.multiply(a_ctrl_t, delta_p_t1)))
         prob = cp.Problem(objective, constraints)
         # prob.solve()
+
+        #print(f'min {min(a_rl*100)}, mean {np.mean(a_rl*100)}, max {max(a_rl*100)}')
 
         # # # Check if the problem is solved successfully
         # # # if prob.status not in ["infeasible", "unbounded"]:
@@ -142,7 +150,8 @@ class RiskController:
             #result = prob.solve(solver=cp.ECOS, max_iters=100, feastol=1e-4, abstol=1e-4, reltol=1e-4, verbose=False, time_limit=10)
             prob.solve(solver=cp.ECOS)
             if prob.status in ["optimal", "optimal_inaccurate"] and a_ctrl_t.value is not None:
-                adjusted_action = a_rl + lambda_t * a_ctrl_t.value
+                #adjusted_action = a_rl + lambda_t * a_ctrl_t.value
+                adjusted_action = a_rl + a_ctrl_t.value
                 return adjusted_action
         except (cp.SolverError, Exception) as e:
             print(f"Solver encountered an issue: {str(e)}. Defaulting to original actions.")
