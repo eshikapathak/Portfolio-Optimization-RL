@@ -7,7 +7,7 @@ class RiskController:
     to adjust the actions from an RL agent within the portfolio optimization context.
     """
 
-    def __init__(self, N, sigma_s_min, sigma_s_max, mu, rf, eta, m, v, market_risk_sigma):
+    def __init__(self, N, sigma_s_min, sigma_s_max, mu, rf, eta, m, v, market_risk_sigma,active = True):
         """
         Initializes the RiskController with specific parameters for risk management.
         
@@ -31,6 +31,8 @@ class RiskController:
         self.m = m
         self.v = v
         self.market_risk_sigma = market_risk_sigma
+        self.active = active
+        print("Risk Controller Active:", self.active)
 
     def calculate_lambda_t(self, recent_performance):
         """
@@ -45,12 +47,16 @@ class RiskController:
         Rs = np.mean(recent_performance)  # Moving average of daily returns
         G = min(abs(Rs - self.rf) / np.sqrt(self.v), 1)
         
+
         if Rs < self.rf:
             lambda_t = (self.m + G) / (1 - G + 1e-10)
         else:
             lambda_t = self.m
         
-        return lambda_t
+        if self.active:
+            return lambda_t
+        else:
+            return 0
 
     def calculate_sigma_s_t1(self, expected_return):
         """
@@ -150,8 +156,8 @@ class RiskController:
             #result = prob.solve(solver=cp.ECOS, max_iters=100, feastol=1e-4, abstol=1e-4, reltol=1e-4, verbose=False, time_limit=10)
             prob.solve(solver=cp.ECOS)
             if prob.status in ["optimal", "optimal_inaccurate"] and a_ctrl_t.value is not None:
-                #adjusted_action = a_rl + lambda_t * a_ctrl_t.value
-                adjusted_action = a_rl + a_ctrl_t.value
+                adjusted_action = a_rl + lambda_t * a_ctrl_t.value
+                # adjusted_action = a_rl + a_ctrl_t.value 
                 return adjusted_action
         except (cp.SolverError, Exception) as e:
             print(f"Solver encountered an issue: {str(e)}. Defaulting to original actions.")

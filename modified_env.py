@@ -29,8 +29,10 @@ class StockTradingEnv(gym.Env):
         hmax: int,
         initial_amount: int,
         num_stock_shares: list[int],
+        # short_term_risk = list[float],
         buy_cost_pct: list[float],
         sell_cost_pct: list[float],
+        # self.my_risk_mem = float
         reward_scaling: float,
         state_space: int,
         action_space: int,
@@ -78,6 +80,7 @@ class StockTradingEnv(gym.Env):
 
         # initialize reward
         self.reward = 0
+        self.short_term_risk = 0
         self.turbulence = 0
         self.cost = 0
         self.trades = 0
@@ -91,6 +94,7 @@ class StockTradingEnv(gym.Env):
             )
         ]  # the initial total asset is calculated by cash + sum (num_share_stock_i * price_stock_i)
         self.rewards_memory = []
+        self.risks_memory = []
         self.actions_memory = []
         self.state_memory = (
             []
@@ -127,6 +131,7 @@ class StockTradingEnv(gym.Env):
     #     # Add prefix to distinguish daily return columns
     #     for col in returns.columns:
     #         self.df[f'daily_return_{col}'] = returns[col]
+
 
     def _sell_stock(self, index, action):
         def _do_sell_normal():
@@ -341,12 +346,12 @@ class StockTradingEnv(gym.Env):
         # # else:
         # #     # If no date column, assume sequential days and use iloc
         # #expected_returns = self.df['daily_returns'].iloc[max(self.day-3, 0):self.day].mean()
-
         # print(self.df['daily_returns'].iloc[max(self.day-3, 0):self.day])
         # print(self.df['daily_returns'].mean(axis=0))
 
         # Get recent performance from the asset memory
         recent_performance = self.asset_memory[-10:]  # last 10 performances
+        # sigma_alpha_t=np.std(recent_performance),  # simplistic strategy risk
 
         actions_original = actions  # Store original actions for comparison
         #print("action sum", np.sum(actions))
@@ -363,6 +368,7 @@ class StockTradingEnv(gym.Env):
         )
 
 
+        # print("Market Risk: ", np.std(recent_performance)+self.risk_params["market_risk_sigma"])
         # sigma_s_min = self.risk_params['sigma_s_min']
 
         # ## RISK CONTROLLER 
@@ -389,6 +395,9 @@ class StockTradingEnv(gym.Env):
         
         self.terminal = self.day >= len(self.df.index.unique()) - 1
         if self.terminal:
+            #DURING PREDICTION?
+            print("risk memory:",len(self.risks_memory))
+            print (self.risks_memory)
             # print(f"Episode: {self.episode}")
             if self.make_plots:
                 self._make_plot()
@@ -421,13 +430,22 @@ class StockTradingEnv(gym.Env):
             df_rewards = pd.DataFrame(self.rewards_memory)
             df_rewards.columns = ["account_rewards"]
             df_rewards["date"] = self.date_memory[:-1]
+
+            df_risks = pd.DataFrame(self.risks_memory)
+            df_risks.columns = ["short_term_risk"]
+            df_risks["date"] = self.date_memory[:-1]
+
+
             if self.episode % self.print_verbosity == 0:
+                
                 print(f"day: {self.day}, episode: {self.episode}")
                 print(f"begin_total_asset: {self.asset_memory[0]:0.2f}")
                 print(f"end_total_asset: {end_total_asset:0.2f}")
                 print(f"total_reward: {tot_reward:0.2f}")
                 print(f"total_cost: {self.cost:0.2f}")
                 print(f"total_trades: {self.trades}")
+                # print(f"short term risk: {self.r}")
+
                 if df_total_value["daily_return"].std() != 0:
                     print(f"Sharpe: {sharpe:0.3f}")
                 print("=================================")
@@ -445,6 +463,21 @@ class StockTradingEnv(gym.Env):
                     ),
                     index=False,
                 )
+                df_risks.to_csv(
+                    "results/account_risks_{}_{}_{}.csv".format(
+                        self.mode, self.model_name, self.iteration
+                    ),
+                    index=False,
+                )
+                plt.plot(self.risks_memory, "r")
+                plt.savefig(
+                    "results/risk_value_{}_{}_{}.png".format(
+                        self.mode, self.model_name, self.iteration
+                    )
+                )
+                plt.close()
+
+
                 df_rewards.to_csv(
                     "results/account_rewards_{}_{}_{}.csv".format(
                         self.mode, self.model_name, self.iteration
@@ -520,6 +553,18 @@ class StockTradingEnv(gym.Env):
             self.reward = end_total_asset - begin_total_asset
             self.rewards_memory.append(self.reward)
             self.reward = self.reward * self.reward_scaling
+
+            #CALCULATE AND LOG SHORT TERM RISK FOR PLOTTING
+            self.short_term_risk = np.std(recent_performance)+self.risk_params["market_risk_sigma"]
+            self.risks_memory.append(self.short_term_risk)
+
+            if len(self.risks_memory) >= len(self.asset_memory)-1:
+                self.risks_memory = []
+
+
+            # print ("risk memory",self.risks_memory)
+
+
             self.state_memory.append(
                 self.state
             )  # add current state in state_recorder for each step
@@ -560,6 +605,7 @@ class StockTradingEnv(gym.Env):
         self.terminal = False
         # self.iteration=self.iteration
         self.rewards_memory = []
+        # self.risks_memory = []
         self.actions_memory = []
         self.date_memory = [self._get_date()]
 
@@ -692,11 +738,29 @@ class StockTradingEnv(gym.Env):
     def save_asset_memory(self):
         date_list = self.date_memory
         asset_list = self.asset_memory
+
+
+
+        # df_risks.to_csv(
+        #     "results/account_risks_{}_{}_{}.csv".format(
+        #         self.mode, self.model_name, self.iteration
+        #     ),
+        #     index=False,
+        # )
+
         # print(len(date_list))
-        # print(len(asset_list))
+        #MAYBE WE CAN SAVE AS AN EXTRA COLUMN IN ASSET MEMORY?
+
+        print(len(asset_list))
         df_account_value = pd.DataFrame(
             {"date": date_list, "account_value": asset_list}
         )
+
+        # df_account_value = pd.DataFrame(
+        #     {"date": date_list, "account_value": asset_list, "short_term_risk": risk_list}
+        # )
+
+        
         return df_account_value
 
     def save_action_memory(self):
@@ -725,3 +789,14 @@ class StockTradingEnv(gym.Env):
         e = DummyVecEnv([lambda: self])
         obs = e.reset()
         return e, obs
+    
+
+    def get_risk_mem(self):
+        # risk_list = self.risks_memory
+
+        df_risks = pd.DataFrame(self.risks_memory)
+        df_risks.columns = ["short_term_risk"]
+        df_risks["date"] = self.date_memory[:-1]
+
+        return df_risks
+
