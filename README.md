@@ -1,5 +1,6 @@
 # Portfolio-Optimization-RL
 18-786 Course Project
+
 This project explores combining a deep reinforcement learning framework with barrier-function based risk controllers for robust portfolio management.
 
 Based off:
