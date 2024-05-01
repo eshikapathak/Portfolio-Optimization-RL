@@ -2,6 +2,11 @@
 18-786 Course Project
 
 This project explores combining a deep reinforcement learning framework with barrier-function based risk controllers for robust portfolio management.
+1. Integrated YahooFinance API with FinRL, and used FinRL for preprocessing
+2. Designed a market trading environment using OpenAI Gym
+3. Designed and tuned 5 RL agents to interact with the environment, using Stablebaselines3
+4. Implemented a SOCP formulation of the barrier-function-based risk controller, using CVXPY
+5. Reported backtesting metrics using Pyfolio
 
 Based off:
 - **FinRL Framework**: For more details, refer to the paper available at [FinRL: Deep Reinforcement Learning Framework to Automate Trading in Quantitative Finance](https://arxiv.org/abs/2111.09395).
