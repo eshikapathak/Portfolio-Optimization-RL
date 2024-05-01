@@ -8,3 +8,6 @@ This project explores combining a deep reinforcement learning framework with bar
 3. The models, model result files, plots, and backtest statistics for each experiment performed can be found [here](https://docs.google.com/spreadsheets/d/1_DgW1Ay-nlSGrObAt36V2PDHxxkHzjGv2gQQa5tzg_I/edit?usp=sharing).
 4. [Project Update](https://docs.google.com/document/d/1h3-aJAI0DSsf8BKTvTjAgDjY9bNFzJasCfxnK-4HgYs/edit?usp=sharing)
 5. [Project Proposal](https://docs.google.com/document/d/1rxum0tFzYNgigNXoEl5MtPPZWnPqUxm8aGi0T5ujTjA/edit?usp=sharing)
+
+
+(P.S. Presentation: the formatting and design styles of the tables and the contents page were borrowed from @mehal99's designs for the 18660 Optimization course project, which Eshika and Mehal completed together.)
