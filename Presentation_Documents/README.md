@@ -10,4 +10,4 @@ This project explores combining a deep reinforcement learning framework with bar
 5. [Project Proposal](https://docs.google.com/document/d/1rxum0tFzYNgigNXoEl5MtPPZWnPqUxm8aGi0T5ujTjA/edit?usp=sharing)
 
 
-(P.S. Presentation: the formatting and design styles of the tables and the contents page were borrowed from @mehal99's designs for the 18660 Optimization course project, which Eshika and Mehal completed together.)
+
